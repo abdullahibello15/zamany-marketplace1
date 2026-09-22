@@ -9,13 +9,12 @@ import {
   Star, MapPin, Phone, Mail, Package, Truck, CheckCircle, User, Settings,
   LogOut, Bell, Grid, List, Filter, Plus, Minus, Trash2, Edit,
   BarChart2, ShoppingBag, ArrowRight, Globe, TrendingUp, Users, Store,
-  Tag, Clock, Award, Shield, MessageCircle, Home, Zap, ChevronUp,
-  Check, CreditCard, Eye, Lock, Leaf, AlertCircle
+  Tag, Award, Shield, MessageCircle, Home, Zap, ChevronUp,
+  Check, CreditCard, Eye, Lock, Leaf, AlertCircle, Upload, FileText
 } from "lucide-react"
 import VendorModule from "./vendor/VendorModule"
-import { VendorOnboardingPage } from "./vendor/pages/VendorOnboardingPage"
-import { vendorApi, type VendorProfile } from "./vendor/lib/vendorApi"
 import BuyerModule from "./buyer/BuyerModule"
+import { ApiError, authService, getTokens, restoreSession } from "./api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1501,8 +1500,15 @@ function BuyerDashboard() {
 function SellerDashboard() {
   const { isLoggedIn } = useApp()
   const nav = useNavigate()
+  const [checkingSession, setCheckingSession] = useState(true)
 
-  if (!isLoggedIn) return (
+  useEffect(() => {
+    void restoreSession().finally(() => setCheckingSession(false))
+  }, [])
+
+  if (checkingSession) return <div className="max-w-lg mx-auto px-4 py-20 text-center text-sm text-gray-500">Restoring your secure session...</div>
+
+  if (!isLoggedIn && !getTokens()?.accessToken) return (
     <div className="max-w-lg mx-auto px-4 py-20 text-center">
       <Lock size={40} className="text-green-300 mx-auto mb-4"/>
       <h2 className="text-xl font-bold text-gray-700 mb-2">Login Required</h2>
@@ -1523,48 +1529,172 @@ function AuthPage() {
   const sellerEntry = params.get("mode") === "seller" || params.get("role") === "seller" || loc.pathname.includes("vendor-auth")
   const [mode, setMode] = useState<"login"|"register"|"forgot">(params.get("mode") === "seller" ? "register" : "login")
   const [role, setRole] = useState<UserRole>(sellerEntry ? "seller" : "buyer")
-  const [form, setForm] = useState({ name:"", email:"", phone:"+234 ", password:"", lga:"" })
+  const [form, setForm] = useState({ name:"", fullName:"", email:"", phone:"+234 ", phoneNumber:"", nin:"", password:"", confirmPassword:"", lga:"" })
   const set = (k: string, v: string) => setForm(f => ({...f, [k]: v}))
   const [showPw, setShowPw] = useState(false)
-  const [vendorProfile, setVendorProfile] = useState<VendorProfile | null>(null)
-  const [vendorLoading, setVendorLoading] = useState(sellerEntry)
   const [vendorError, setVendorError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [loginError, setLoginError] = useState("")
+  const [vendorStep, setVendorStep] = useState(1)
+  const [ninPhoto, setNinPhoto] = useState<File | null>(null)
+  const [ninPhotoPreview, setNinPhotoPreview] = useState("")
+  const [cacDocument, setCacDocument] = useState<File | null>(null)
+  const [cacDocumentPreview, setCacDocumentPreview] = useState("")
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const ninPhotoInputRef = useRef<HTMLInputElement>(null)
+  const cacDocumentInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (!sellerEntry) return
-    let mounted = true
-    const loadVendorProfile = async () => {
-      try {
-        setVendorLoading(true)
-        setVendorError("")
-        const profile = await vendorApi.getProfile()
-        if (mounted) setVendorProfile(profile)
-      } catch (err) {
-        if (mounted) setVendorError(err instanceof Error ? err.message : "Unable to load vendor onboarding")
-      } finally {
-        if (mounted) setVendorLoading(false)
-      }
-    }
-    void loadVendorProfile()
-    return () => { mounted = false }
-  }, [sellerEntry])
-
-  const handleLogin = () => {
-    setIsLoggedIn(true)
-    const userName = form.email.includes("seller") ? "Bida Craft Hub" : "Aminu Bello"
-    setUser({ name: userName, role })
+  const handleLogin = async () => {
+    const next: Record<string, string> = {}
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Enter a valid email address."
+    if (!form.password) next.password = "Enter your password."
+    setFieldErrors(next)
+    setLoginError("")
+    if (Object.keys(next).length) return
 
     if (role === "seller") {
-      const seller = SELLERS.find(s => s.name.toLowerCase().includes(form.email.split("@")[0]) || s.name === userName)
+      const credentials = window.sessionStorage.getItem("zamany.mock.vendor.credentials")
+      let mockVendor: { email: string; password: string; fullName: string } | null = null
+      try { mockVendor = credentials ? JSON.parse(credentials) as { email: string; password: string; fullName: string } : null } catch { /* Treat invalid mock credentials as a failed login. */ }
+      if (!mockVendor || mockVendor.email !== form.email || mockVendor.password !== form.password) {
+        setLoginError("Invalid email or password")
+        return
+      }
+      setIsLoggedIn(true)
+      setUser({ name: mockVendor.fullName, role: "seller" })
+      const seller = SELLERS[0]
       if (seller) {
         setCurrentSellerId(seller.id)
         setSellerData(seller)
       }
+      nav("/seller-dashboard")
+      return
     }
-    nav(role === "seller" ? "/seller-dashboard" : "/dashboard")
+
+    try {
+      setSubmitting(true)
+      const result = await authService.login({ email: form.email, password: form.password, deviceName: "Zamani Marketplace web" })
+      const nextRole: UserRole = result.role === "VENDOR" ? "seller" : result.role === "ADMIN" ? "admin" : "buyer"
+      setIsLoggedIn(true)
+      setUser({ name: form.email.split("@")[0], role: nextRole })
+      if (nextRole === "seller") {
+        const seller = SELLERS.find((entry) => entry.name.toLowerCase().includes(form.email.split("@")[0])) || SELLERS[0]
+        if (seller) {
+          setCurrentSellerId(seller.id)
+          setSellerData(seller)
+        }
+      }
+      nav(nextRole === "seller" ? "/seller-dashboard" : nextRole === "admin" ? "/admin" : "/dashboard")
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) setLoginError("Invalid email or password")
+      else if (err instanceof ApiError && err.status === 403) setLoginError("Account is not active — contact support.")
+      else if (err instanceof ApiError && err.status === 400 && err.body && typeof err.body === "object" && "message" in err.body) {
+        const messages = Array.isArray(err.body.message) ? err.body.message.map(String) : [String(err.body.message)]
+        const errors: Record<string, string> = {}
+        messages.forEach((message) => {
+          const lower = message.toLowerCase()
+          if (lower.includes("email")) errors.email = message
+          else if (lower.includes("password")) errors.password = message
+        })
+        setFieldErrors(errors)
+        setLoginError(Object.keys(errors).length ? "Please correct the highlighted fields." : messages.join(" "))
+      } else setLoginError("Something went wrong, try again")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleRegister = () => {
+  const validateVendorRegistration = () => {
+    const next: Record<string, string> = {}
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Enter a valid email address."
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) next.password = "Use an uppercase letter, lowercase letter, and a number."
+    if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords do not match."
+    const fullName = form.fullName.trim()
+    if (fullName.length < 2 || fullName.length > 160) next.fullName = "Full name must be between 2 and 160 characters."
+    if (!form.phoneNumber.trim()) next.phoneNumber = "Enter your phone number."
+    if (!/^\d{11}$/.test(form.nin)) next.nin = "NIN must be exactly 11 digits."
+    setFieldErrors(next)
+    return Object.keys(next).length === 0
+  }
+
+  const validateVendorStep = (step: number) => {
+    const next: Record<string, string> = {}
+    if (step === 1) {
+      const fullName = form.fullName.trim()
+      if (fullName.length < 2 || fullName.length > 160) next.fullName = "Full name must be between 2 and 160 characters."
+      if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Enter a valid email address."
+      if (!form.phoneNumber.trim()) next.phoneNumber = "Enter your phone number."
+    }
+    if (step === 2) {
+      if (!/^\d{11}$/.test(form.nin)) next.nin = "NIN must be exactly 11 digits."
+      if (!ninPhoto) next.ninPhoto = "Upload your NIN photo."
+    }
+    if (step === 3 && !cacDocument) next.cacDocument = "Upload your CAC document."
+    if (step === 4) {
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) next.password = "Use an uppercase letter, lowercase letter, and a number."
+      if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords do not match."
+      if (!termsAccepted) next.terms = "Accept the terms to continue."
+    }
+    setFieldErrors(next)
+    return Object.keys(next).length === 0
+  }
+
+  const selectVendorFile = (field: "ninPhoto" | "cacDocument", file?: File) => {
+    if (!file) return
+    const allowed = field === "ninPhoto" ? ["image/jpeg", "image/png"] : ["image/jpeg", "image/png", "application/pdf"]
+    if (!allowed.includes(file.type)) {
+      setFieldErrors((current) => ({ ...current, [field]: field === "ninPhoto" ? "Upload a JPEG or PNG image." : "Upload a JPEG, PNG, or PDF file." }))
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFieldErrors((current) => ({ ...current, [field]: "File must be 5MB or smaller." }))
+      return
+    }
+    setFieldErrors((current) => ({ ...current, [field]: "" }))
+    if (field === "ninPhoto") {
+      setNinPhoto(file)
+      setNinPhotoPreview(URL.createObjectURL(file))
+    } else {
+      setCacDocument(file)
+      setCacDocumentPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : "")
+    }
+  }
+
+  const continueVendorRegistration = () => {
+    if (validateVendorStep(vendorStep)) setVendorStep((current) => current + 1)
+  }
+
+  const handleVendorRegistrationError = (err: unknown) => {
+    if (err instanceof ApiError && err.status < 500 && err.body && typeof err.body === "object" && "message" in err.body) {
+      const messages = Array.isArray(err.body.message) ? err.body.message.map(String) : [String(err.body.message)]
+      const next: Record<string, string> = {}
+      messages.forEach((message) => {
+        const lower = message.toLowerCase()
+        if (lower.startsWith("fullname") || lower.includes("full name")) next.fullName = message
+        else if (lower.startsWith("email") || lower.includes("email")) next.email = message
+        else if (lower.startsWith("phonenumber") || lower.includes("phone number")) next.phoneNumber = message
+        else if (lower.startsWith("nin") || lower.includes("nin")) next.nin = message
+        else if (lower.startsWith("password") || lower.includes("password")) next.password = message
+      })
+      setFieldErrors(next)
+      setVendorError(Object.keys(next).length ? "Please correct the highlighted fields." : messages.join(" "))
+      return
+    }
+    setVendorError("We could not create your vendor account. Please check your connection and try again.")
+  }
+
+  const handleRegister = async () => {
+    if (role === "seller") {
+      if (!validateVendorStep(4)) return
+      setSubmitting(true)
+      setVendorError("")
+      window.sessionStorage.setItem("zamany.mock.vendor.credentials", JSON.stringify({ email: form.email, password: form.password, fullName: form.fullName.trim() }))
+      setIsLoggedIn(false)
+      setSubmitting(false)
+      nav("/vendor-auth")
+      return
+    }
     setIsLoggedIn(true)
     const userName = form.name || "New User"
     setUser({ name: userName, role })
@@ -1580,55 +1710,7 @@ function AuthPage() {
         if (defaultSeller) setSellerData(defaultSeller)
       }
     }
-    nav(role === "seller" ? "/seller-dashboard" : "/dashboard")
-  }
-
-  const submitVendorOnboarding = async (updates: Partial<VendorProfile>) => {
-    const updated = await vendorApi.submitOnboarding(updates)
-    setVendorProfile(updated)
-    setIsLoggedIn(true)
-    setUser({ name: updated.storeName, role: "seller" })
-    setCurrentSellerId("s1")
-    const defaultSeller = SELLERS.find(s => s.id === "s1")
-    if (defaultSeller) setSellerData(defaultSeller)
-    nav("/seller-dashboard")
-  }
-
-  const uploadVendorDocument = async (documentId: string, file: File) => {
-    const uploaded = await vendorApi.uploadDocument(documentId, file)
-    setVendorProfile(current => current ? {
-      ...current,
-      documents: current.documents.map(doc => doc.id === documentId ? uploaded : doc),
-    } : current)
-  }
-
-  if (sellerEntry && mode === "register" && role === "seller") {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="mx-auto max-w-7xl px-4 py-6">
-          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-700 text-white"><Leaf size={18} /></div>
-              <span className="text-xl font-black text-green-800">Zamani <span className="text-amber-500">Marketplace</span></span>
-            </Link>
-            <button onClick={() => setMode("login")} className="text-sm font-bold text-green-700 hover:text-green-800">Already registered? Login</button>
-          </div>
-
-          <div className="mb-5">
-            <h1 className="text-2xl font-black text-gray-900">Vendor sign up</h1>
-            <p className="mt-1 text-sm text-gray-500">Complete your business details and verification documents to submit your store for review.</p>
-          </div>
-
-          {vendorLoading ? (
-            <div className="rounded-xl border border-green-100 bg-white p-8 text-sm text-gray-500">Loading vendor onboarding...</div>
-          ) : vendorError || !vendorProfile ? (
-            <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">{vendorError || "Vendor onboarding could not be loaded."}</div>
-          ) : (
-            <VendorOnboardingPage stepped profile={vendorProfile} onSubmit={submitVendorOnboarding} onUploadDocument={uploadVendorDocument} />
-          )}
-        </div>
-      </div>
-    )
+    nav("/dashboard")
   }
 
   return (
@@ -1671,6 +1753,7 @@ function AuthPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
                   <input type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="you@example.com" className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>
+                  {fieldErrors.email && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.email}</p>}
                 </div>
                 <Btn variant="primary" className="w-full py-3 text-base">Send Reset Link</Btn>
                 <button onClick={()=>setMode("login")} className="w-full text-sm text-green-700 hover:underline">Back to Login</button>
@@ -1684,6 +1767,7 @@ function AuthPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
                   <input type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="you@example.com" className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>
+                  {fieldErrors.email && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.email}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
@@ -1691,12 +1775,14 @@ function AuthPage() {
                     <input type={showPw?"text":"password"} value={form.password} onChange={e=>set("password",e.target.value)} placeholder="••••••••" className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30 pr-10"/>
                     <button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Eye size={16}/></button>
                   </div>
+                  {fieldErrors.password && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.password}</p>}
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <label className="flex items-center gap-2 text-gray-600"><input type="checkbox" className="accent-green-700"/>Remember me</label>
                   <button onClick={()=>setMode("forgot")} className="text-green-700 hover:underline font-medium">Forgot password?</button>
                 </div>
-                <Btn variant="primary" className="w-full py-3 text-base" onClick={handleLogin}>Login to Zamani Marketplace</Btn>
+                {loginError && <p className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{loginError}</p>}
+                <Btn variant="primary" className="w-full py-3 text-base" onClick={() => void handleLogin()} disabled={submitting}>{submitting ? "Logging in..." : "Login to Zamani Marketplace"}</Btn>
                 <p className="text-center text-sm text-gray-500">Don't have an account? <button onClick={()=>setMode("register")} className="text-green-700 font-semibold hover:underline">Create one free</button></p>
               </div>
             </>
@@ -1710,22 +1796,34 @@ function AuthPage() {
                 <button onClick={()=>setRole("seller")} className={`flex-1 py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors ${role==="seller"?"bg-green-700 text-white":"text-gray-600 hover:bg-green-50"}`}><Store size={14}/> Sell</button>
               </div>
               {role === "seller" && <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 flex items-start gap-2"><Award size={14} className="shrink-0 mt-0.5"/><span>Seller accounts require ID verification. Start listing products free within 24 hours of approval.</span></div>}
-              <div className="space-y-3">
-                {role === "seller" && <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Business / Store Name</label><input type="text" placeholder="e.g. Bida Craft Hub" value={form.name} onChange={e=>set("name",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/></div>}
-                {role === "buyer" && <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label><input type="text" placeholder="Aminu Bello" value={form.name} onChange={e=>set("name",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/></div>}
+              {role === "seller" ? <div className="space-y-4">
+                {(() => {
+                  const steps = ["Account", "NIN verification", "CAC document", "Security"]
+                  return <>
+                    <div className="mb-6">
+                      <div className="flex items-center">
+                        {steps.map((step, index) => <React.Fragment key={step}><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${index + 1 <= vendorStep ? "bg-green-700 text-white" : "bg-gray-200 text-gray-500"}`}>{index + 1}</div>{index < steps.length - 1 && <div className={`h-1 flex-1 ${index + 1 < vendorStep ? "bg-green-700" : "bg-gray-200"}`} />}</React.Fragment>)}
+                      </div>
+                      <div className="mt-2 flex justify-between text-xs text-gray-500"><span>Step {vendorStep} of 4 · {steps[vendorStep - 1]}</span><span>{vendorStep < 4 ? `Next: ${steps[vendorStep]}` : "Final step"}</span></div>
+                    </div>
+                    {vendorStep === 1 && <><div><label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label><input type="text" placeholder="Aminu Bello" value={form.fullName} onChange={e=>set("fullName",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>{fieldErrors.fullName && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.fullName}</p>}</div><div><label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label><input type="email" placeholder="you@example.com" value={form.email} onChange={e=>set("email",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>{fieldErrors.email && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.email}</p>}</div><div><label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label><input type="tel" value={form.phoneNumber} onChange={e=>set("phoneNumber",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>{fieldErrors.phoneNumber && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.phoneNumber}</p>}</div></>}
+                    {vendorStep === 2 && <><div><label className="block text-sm font-medium text-gray-700 mb-1.5">NIN</label><input type="text" inputMode="numeric" maxLength={11} value={form.nin} onChange={e=>set("nin",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>{fieldErrors.nin && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.nin}</p>}</div><div><label className="block text-sm font-medium text-gray-700 mb-1.5">NIN Photo</label><input ref={ninPhotoInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={e=>selectVendorFile("ninPhoto", e.target.files?.[0])}/><div onDragOver={e=>e.preventDefault()} onDrop={e=>{ e.preventDefault(); selectVendorFile("ninPhoto", e.dataTransfer.files[0]) }} onClick={()=>ninPhotoInputRef.current?.click()} className="cursor-pointer rounded-xl border-2 border-dashed border-green-200 bg-green-50/30 p-5 text-center text-sm text-gray-600"><Upload size={20} className="mx-auto mb-2 text-green-700"/>Drop a JPEG or PNG here, or click to browse<br/><span className="text-xs text-gray-500">Maximum file size: 5MB</span></div>{ninPhoto && <div className="mt-2 flex items-center gap-3 rounded-xl border border-green-100 p-2">{ninPhotoPreview && <img src={ninPhotoPreview} alt="NIN preview" className="h-12 w-12 rounded-lg object-cover"/>}<span className="min-w-0 flex-1 truncate text-sm text-gray-700">{ninPhoto.name}</span><button type="button" onClick={()=>{ setNinPhoto(null); setNinPhotoPreview(""); if (ninPhotoInputRef.current) ninPhotoInputRef.current.value = "" }} className="text-sm font-medium text-red-600">Remove</button></div>}{fieldErrors.ninPhoto && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.ninPhoto}</p>}</div></>}
+                    {vendorStep === 3 && <div><label className="block text-sm font-medium text-gray-700 mb-1.5">CAC Document</label><input ref={cacDocumentInputRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={e=>selectVendorFile("cacDocument", e.target.files?.[0])}/><div onDragOver={e=>e.preventDefault()} onDrop={e=>{ e.preventDefault(); selectVendorFile("cacDocument", e.dataTransfer.files[0]) }} onClick={()=>cacDocumentInputRef.current?.click()} className="cursor-pointer rounded-xl border-2 border-dashed border-green-200 bg-green-50/30 p-5 text-center text-sm text-gray-600"><Upload size={20} className="mx-auto mb-2 text-green-700"/>Drop a JPEG, PNG, or PDF here, or click to browse<br/><span className="text-xs text-gray-500">Maximum file size: 5MB</span></div>{cacDocument && <div className="mt-2 flex items-center gap-3 rounded-xl border border-green-100 p-2">{cacDocumentPreview ? <img src={cacDocumentPreview} alt="CAC preview" className="h-12 w-12 rounded-lg object-cover"/> : <FileText size={24} className="text-green-700"/>}<span className="min-w-0 flex-1 truncate text-sm text-gray-700">{cacDocument.name}</span><button type="button" onClick={()=>{ setCacDocument(null); setCacDocumentPreview(""); if (cacDocumentInputRef.current) cacDocumentInputRef.current.value = "" }} className="text-sm font-medium text-red-600">Remove</button></div>}{fieldErrors.cacDocument && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.cacDocument}</p>}</div>}
+                    {vendorStep === 4 && <><div><label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label><div className="relative"><input type={showPw?"text":"password"} value={form.password} onChange={e=>set("password",e.target.value)} placeholder="Use uppercase, lowercase, and a number" className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30 pr-10"/><button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Eye size={16}/></button></div>{fieldErrors.password && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.password}</p>}</div><div><label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label><input type={showPw?"text":"password"} value={form.confirmPassword} onChange={e=>set("confirmPassword",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/>{fieldErrors.confirmPassword && <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.confirmPassword}</p>}</div><label className="flex items-start gap-2 text-sm text-gray-600"><input type="checkbox" checked={termsAccepted} onChange={e=>setTermsAccepted(e.target.checked)} className="mt-1 accent-green-700"/>I agree to the Terms of Service and Privacy Policy.</label>{fieldErrors.terms && <p className="-mt-2 text-xs font-semibold text-red-600">{fieldErrors.terms}</p>}</>}
+                    {vendorError && <p className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{vendorError}</p>}
+                    <div className="flex items-center justify-between pt-2">{vendorStep > 1 ? <button type="button" onClick={()=>setVendorStep(current=>current-1)} className="text-sm font-semibold text-green-700 hover:underline">← Back</button> : <span />}{vendorStep < 4 ? <Btn variant="primary" onClick={continueVendorRegistration}>Continue <ArrowRight size={16}/></Btn> : <Btn variant="primary" onClick={() => void handleRegister()} disabled={submitting}>{submitting ? "Creating account..." : "Create Seller Account"} <ArrowRight size={16}/></Btn>}</div>
+                  </>
+                })()}
+                <p className="text-center text-sm text-gray-500">Already have an account? <button onClick={()=>setMode("login")} className="text-green-700 font-semibold hover:underline">Login here</button></p>
+              </div> : <div className="space-y-3">
+                <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label><input type="text" placeholder="Aminu Bello" value={form.name} onChange={e=>set("name",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label><input type="email" placeholder="you@example.com" value={form.email} onChange={e=>set("email",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label><input type="tel" value={form.phone} onChange={e=>set("phone",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30"/></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1.5">LGA</label><select value={form.lga} onChange={e=>set("lga",e.target.value)} className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-white"><option value="">Select your LGA</option>{LGAS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                  <div className="relative"><input type={showPw?"text":"password"} value={form.password} onChange={e=>set("password",e.target.value)} placeholder="Min. 8 characters" className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30 pr-10"/><button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Eye size={16}/></button></div>
-                </div>
-                <Btn variant="primary" className="w-full py-3 text-base" onClick={handleRegister}>
-                  {role === "seller" ? "Create Seller Account" : "Create Buyer Account"} <ArrowRight size={16}/>
-                </Btn>
-                <p className="text-center text-xs text-gray-400">By registering you agree to our <a href="#" className="text-green-700 underline">Terms of Service</a> and <a href="#" className="text-green-700 underline">Privacy Policy</a></p>
-                <p className="text-center text-sm text-gray-500">Already have an account? <button onClick={()=>setMode("login")} className="text-green-700 font-semibold hover:underline">Login here</button></p>
-              </div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label><div className="relative"><input type={showPw?"text":"password"} value={form.password} onChange={e=>set("password",e.target.value)} placeholder="Min. 8 characters" className="w-full rounded-xl border-2 border-green-200 px-4 py-3 text-sm focus:outline-none focus:border-green-600 bg-green-50/30 pr-10"/><button type="button" onClick={()=>setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Eye size={16}/></button></div></div>
+                <Btn variant="primary" className="w-full py-3 text-base" onClick={() => void handleRegister()}>Create Buyer Account <ArrowRight size={16}/></Btn>
+                <p className="text-center text-xs text-gray-400">By registering you agree to our <a href="#" className="text-green-700 underline">Terms of Service</a> and <a href="#" className="text-green-700 underline">Privacy Policy</a></p><p className="text-center text-sm text-gray-500">Already have an account? <button onClick={()=>setMode("login")} className="text-green-700 font-semibold hover:underline">Login here</button></p>
+              </div>}
             </>
           )}
         </div>

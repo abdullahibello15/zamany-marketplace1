@@ -7,6 +7,7 @@ import { BuyerCartPage } from "./pages/BuyerCartPage"
 import { BuyerCheckoutPage } from "./pages/BuyerCheckoutPage"
 import { BuyerAuthPage } from "./pages/BuyerAuthPage"
 import { BuyerAccountPage, BuyerOrderDetailPage } from "./pages/BuyerAccountPage"
+import { BuyerProviderProfilePage } from "./pages/BuyerProviderProfilePage"
 
 export default function BuyerModule() {
   return (
@@ -21,6 +22,7 @@ export default function BuyerModule() {
           <Route path="/dashboard" element={<BuyerAccountPage />} />
           <Route path="/wishlist" element={<Navigate to="/dashboard?tab=wishlist" replace />} />
           <Route path="/orders/:id" element={<BuyerOrderDetailPage />} />
+          <Route path="/profiles/:id" element={<BuyerProviderProfilePage />} />
           <Route path="/auth" element={<BuyerAuthPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

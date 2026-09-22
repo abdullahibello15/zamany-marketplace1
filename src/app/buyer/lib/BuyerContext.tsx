@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from "react"
+import type { AuthRole } from "../../api"
 import { buyerApi } from "./buyerApi"
 import type { BuyerCartItem, BuyerProduct, BuyerUser } from "./buyerTypes"
 
@@ -9,7 +10,7 @@ interface BuyerContextValue {
   wishlist: string[]
   cartCount: number
   cartTotal: number
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthRole>
   register: (payload: Partial<BuyerUser> & { password?: string }) => Promise<void>
   verifyAccount: (code: string) => Promise<void>
   updateProfile: (updates: Partial<BuyerUser>) => Promise<void>
@@ -40,9 +41,11 @@ export function BuyerProvider({ children }: { children: React.ReactNode }) {
     cartTotal,
     login: async (email: string, password: string) => {
       const result = await buyerApi.login(email, password)
-      setUser(result.user)
+      setUser({ ...result.user, verified: true })
+      return "BUYER"
     },
     register: async (payload) => {
+      if (!payload.email || !payload.password) throw new Error("Email and password are required")
       const result = await buyerApi.register(payload)
       setUser(result.user)
     },

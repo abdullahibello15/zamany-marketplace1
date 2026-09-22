@@ -26,6 +26,10 @@ export function BuyerProductCard({ product }: { product: BuyerProduct }) {
             {product.location}
           </div>
         </div>
+        <Link to={`/profiles/${product.vendor.id}`} className="flex items-center gap-2 rounded-xl text-sm text-gray-600 hover:text-green-700">
+          <img src={product.vendor.avatar} alt="" className="h-7 w-7 rounded-full object-cover" />
+          <span className="truncate font-semibold">{product.vendor.name}</span>
+        </Link>
         <BuyerRating rating={product.rating} count={product.reviewCount} size={12} />
         <BuyerPrice price={product.price} originalPrice={product.originalPrice} compact />
         <div className="flex gap-2">

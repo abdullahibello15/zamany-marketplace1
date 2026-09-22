@@ -31,5 +31,5 @@ export async function buyerApiRequest<T>(path: string, options: ApiOptions = {})
 }
 
 export function hasBuyerBackend() {
-  return Boolean(apiBaseUrl)
+  return false
 }

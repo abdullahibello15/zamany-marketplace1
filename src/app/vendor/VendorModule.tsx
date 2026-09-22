@@ -59,6 +59,7 @@ export default function VendorModule() {
     <VendorShell
       active={active}
       storeName={profile.storeName}
+      ownerName={profile.ownerName}
       status={<VendorStatusBadge status={profile.status} />}
       onNavigate={navigateToSection}
     >
