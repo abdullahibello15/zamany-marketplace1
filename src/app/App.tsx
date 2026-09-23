@@ -189,7 +189,7 @@ const PIE_DATA = [
 const PIE_COLORS = ["#15803d","#d97706","#3b82f6","#8b5cf6"]
 
 const T: Record<string, Record<Lang, string>> = {
-  "Zamani Marketplace": { en:"Zamani Marketplace", ha:"Zamani Marketplace" },
+  "ZAMANI NG MARKET HUB": { en:"ZAMANI NG MARKET HUB", ha:"ZAMANI NG MARKET HUB" },
   "Search products...": { en:"Search products...", ha:"Nema kaya..." },
   "Home":               { en:"Home",               ha:"Gida" },
   "Shop":               { en:"Shop",               ha:"Shago" },
@@ -207,7 +207,7 @@ const T: Record<string, Record<Lang, string>> = {
   "Price Range":        { en:"Price Range",        ha:"Kewayon Farashi" },
   "Location":           { en:"Location",           ha:"Wuri" },
   "Rating":             { en:"Rating",             ha:"Matsayi" },
-  "Sell on Zamani Marketplace": { en:"Sell on Zamani Marketplace", ha:"Saya a Zamani Marketplace" },
+  "Sell on ZAMANI NG MARKET HUB": { en:"Sell on ZAMANI NG MARKET HUB", ha:"Saya a ZAMANI NG MARKET HUB" },
 }
 
 const tr = (key: string, lang: Lang) => T[key]?.[lang] ?? key
@@ -378,7 +378,7 @@ function Navbar() {
             <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center">
               <Leaf size={16} className="text-white" />
             </div>
-            <span className="truncate text-sm font-black text-green-800 tracking-tight sm:text-lg">Zamani <span className="text-amber-500">Marketplace</span></span>
+            <span className="truncate text-sm font-black text-green-800 tracking-tight sm:text-lg">ZAMANI NG <span className="text-amber-500">MARKET HUB</span></span>
           </Link>
 
           {/* Right actions */}
@@ -487,7 +487,7 @@ function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center"><Leaf size={16} className="text-white" /></div>
-              <span className="text-lg font-black text-white">Zamani <span className="text-amber-400">Marketplace</span></span>
+              <span className="text-lg font-black text-white">ZAMANI NG <span className="text-amber-400">MARKET HUB</span></span>
             </div>
             <p className="text-sm text-green-300 leading-relaxed mb-4">Niger State's #1 online marketplace. Connecting buyers and sellers across all 25 LGAs.</p>
             <div className="flex gap-2">
@@ -543,7 +543,7 @@ function Footer() {
         </div>
 
         <div className="mt-6 pt-4 border-t border-green-800 flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-green-500">
-          <p>© 2025 Zamani Marketplace. All rights reserved. Made with ❤️ in Niger State, Nigeria.</p>
+          <p>© 2025 ZAMANI NG MARKET HUB. All rights reserved. Made with ❤️ in Niger State, Nigeria.</p>
           <p>Prices shown in Nigerian Naira (₦). All transactions secured by SSL.</p>
         </div>
       </div>
@@ -1554,27 +1554,32 @@ function AuthPage() {
     if (Object.keys(next).length) return
 
     if (role === "seller") {
-      const credentials = window.sessionStorage.getItem("zamany.mock.vendor.credentials")
-      let mockVendor: { email: string; password: string; fullName: string } | null = null
-      try { mockVendor = credentials ? JSON.parse(credentials) as { email: string; password: string; fullName: string } : null } catch { /* Treat invalid mock credentials as a failed login. */ }
-      if (!mockVendor || mockVendor.email !== form.email || mockVendor.password !== form.password) {
-        setLoginError("Invalid email or password")
-        return
+      try {
+        setSubmitting(true)
+        const result = await authService.loginVendor({ email: form.email, password: form.password })
+        if (result.role !== "VENDOR") throw new Error("This account is not a vendor account")
+        setIsLoggedIn(true)
+        setUser({ name: form.email.split("@")[0], role: "seller" })
+        const seller = SELLERS[0]
+        if (seller) {
+          setCurrentSellerId(seller.id)
+          setSellerData(seller)
+        }
+        nav("/seller-dashboard")
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) setLoginError("Invalid email or password")
+        else if (err instanceof ApiError && err.status === 403) setLoginError("Account is not active â€” contact support.")
+        else if (err instanceof Error && err.message === "This account is not a vendor account") setLoginError(err.message)
+        else setLoginError("Something went wrong, try again")
+      } finally {
+        setSubmitting(false)
       }
-      setIsLoggedIn(true)
-      setUser({ name: mockVendor.fullName, role: "seller" })
-      const seller = SELLERS[0]
-      if (seller) {
-        setCurrentSellerId(seller.id)
-        setSellerData(seller)
-      }
-      nav("/seller-dashboard")
       return
     }
 
     try {
       setSubmitting(true)
-      const result = await authService.login({ email: form.email, password: form.password, deviceName: "Zamani Marketplace web" })
+      const result = await authService.login({ email: form.email, password: form.password, deviceName: "ZAMANI NG MARKET HUB web" })
       const nextRole: UserRole = result.role === "VENDOR" ? "seller" : result.role === "ADMIN" ? "admin" : "buyer"
       setIsLoggedIn(true)
       setUser({ name: form.email.split("@")[0], role: nextRole })
@@ -1618,7 +1623,7 @@ function AuthPage() {
     return Object.keys(next).length === 0
   }
 
-  const validateVendorStep = (step: number) => {
+    const validateVendorStep = (step: number) => {
     const next: Record<string, string> = {}
     if (step === 1) {
       const fullName = form.fullName.trim()
@@ -1628,9 +1633,9 @@ function AuthPage() {
     }
     if (step === 2) {
       if (!/^\d{11}$/.test(form.nin)) next.nin = "NIN must be exactly 11 digits."
-      if (!ninPhoto) next.ninPhoto = "Upload your NIN photo."
+      // TEMP: NIN photo made optional for testing with mock data — restore `if (!ninPhoto) next.ninPhoto = "Upload your NIN photo."` before going live.
     }
-    if (step === 3 && !cacDocument) next.cacDocument = "Upload your CAC document."
+    // TEMP: CAC document made optional for testing with mock data — restore `if (!cacDocument) next.cacDocument = "Upload your CAC document."` before going live.
     if (step === 4) {
       if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) next.password = "Use an uppercase letter, lowercase letter, and a number."
       if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords do not match."
@@ -1687,12 +1692,24 @@ function AuthPage() {
   const handleRegister = async () => {
     if (role === "seller") {
       if (!validateVendorStep(4)) return
-      setSubmitting(true)
-      setVendorError("")
-      window.sessionStorage.setItem("zamany.mock.vendor.credentials", JSON.stringify({ email: form.email, password: form.password, fullName: form.fullName.trim() }))
-      setIsLoggedIn(false)
-      setSubmitting(false)
-      nav("/vendor-auth")
+      try {
+        setSubmitting(true)
+        setVendorError("")
+        await authService.registerVendor({
+          fullName: form.fullName.trim(),
+          email: form.email,
+          phoneNumber: form.phoneNumber.trim(),
+          nin: form.nin,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+        })
+        setIsLoggedIn(false)
+        nav("/vendor-auth")
+      } catch (err) {
+        handleVendorRegistrationError(err)
+      } finally {
+        setSubmitting(false)
+      }
       return
     }
     setIsLoggedIn(true)
@@ -1723,7 +1740,7 @@ function AuthPage() {
         </div>
         <div className="relative z-10 max-w-xs text-center">
           <div className="w-16 h-16 bg-green-700 rounded-2xl flex items-center justify-center mx-auto mb-4"><Leaf size={28} className="text-white"/></div>
-          <h2 className="text-3xl font-black mb-3">Zamani <span className="text-amber-400">Marketplace</span></h2>
+          <h2 className="text-3xl font-black mb-3">ZAMANI NG <span className="text-amber-400">MARKET HUB</span></h2>
           <p className="text-green-200 text-base leading-relaxed">Niger State's largest online marketplace. Buy and sell across all 25 LGAs.</p>
           <div className="mt-8 space-y-3 text-left">
             {[
@@ -1742,7 +1759,7 @@ function AuthPage() {
         <div className="w-full max-w-md">
           <div className="flex items-center gap-2 mb-8 md:hidden">
             <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center"><Leaf size={16} className="text-white"/></div>
-            <span className="text-lg font-black text-green-800">Zamani <span className="text-amber-500">Marketplace</span></span>
+            <span className="text-lg font-black text-green-800">ZAMANI NG <span className="text-amber-500">MARKET HUB</span></span>
           </div>
 
           {mode === "forgot" ? (
@@ -1762,7 +1779,7 @@ function AuthPage() {
           ) : mode === "login" ? (
             <>
               <h1 className="text-2xl font-black text-gray-900 mb-1">Welcome back</h1>
-              <p className="text-gray-500 text-sm mb-6">Login to your Zamani Marketplace account</p>
+              <p className="text-gray-500 text-sm mb-6">Login to your ZAMANI NG MARKET HUB account</p>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
@@ -1782,13 +1799,13 @@ function AuthPage() {
                   <button onClick={()=>setMode("forgot")} className="text-green-700 hover:underline font-medium">Forgot password?</button>
                 </div>
                 {loginError && <p className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{loginError}</p>}
-                <Btn variant="primary" className="w-full py-3 text-base" onClick={() => void handleLogin()} disabled={submitting}>{submitting ? "Logging in..." : "Login to Zamani Marketplace"}</Btn>
+                <Btn variant="primary" className="w-full py-3 text-base" onClick={() => void handleLogin()} disabled={submitting}>{submitting ? "Logging in..." : "Login to ZAMANI NG MARKET HUB"}</Btn>
                 <p className="text-center text-sm text-gray-500">Don't have an account? <button onClick={()=>setMode("register")} className="text-green-700 font-semibold hover:underline">Create one free</button></p>
               </div>
             </>
           ) : (
             <>
-              <h1 className="text-2xl font-black text-gray-900 mb-1">Join Zamani Marketplace</h1>
+              <h1 className="text-2xl font-black text-gray-900 mb-1">Join ZAMANI NG MARKET HUB</h1>
               <p className="text-gray-500 text-sm mb-4">Create your free account today</p>
               {/* Role toggle */}
               <div className="flex rounded-xl border-2 border-green-200 overflow-hidden mb-5">
@@ -1918,7 +1935,7 @@ function AdminPanel() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1><p className="text-sm text-gray-500">Zamani Marketplace Platform Management</p></div>
+        <div><h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1><p className="text-sm text-gray-500">ZAMANI NG MARKET HUB Platform Management</p></div>
         <Badge className="bg-red-100 text-red-700 px-3 py-1.5"><Shield size={12}/> Admin</Badge>
       </div>
 

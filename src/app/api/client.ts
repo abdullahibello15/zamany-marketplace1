@@ -38,12 +38,22 @@ export function setTokens(tokens: AuthTokens) {
   inMemoryTokens = tokens
   // The API returns refresh tokens in JSON rather than an httpOnly cookie. Keep it
   // only for this browser session; the short-lived access token stays in memory.
-  if (tokens.refreshToken) window.sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, tokens.refreshToken)
+  if (tokens.refreshToken) {
+    try {
+      window.sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, tokens.refreshToken)
+    } catch {
+      // Browser privacy settings can block storage; the active in-memory session remains valid.
+    }
+  }
 }
 
 export function clearTokens() {
   inMemoryTokens = null
-  window.sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+  try {
+    window.sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+  } catch {
+    // There is no persisted token to clear when storage is unavailable.
+  }
 }
 
 async function parseResponse(response: Response): Promise<unknown> {

@@ -110,7 +110,7 @@ export function BuyerAuthPage() {
             {mode === "reset" && "Reset password"}
             {mode === "verify" && "Verify account"}
           </h1>
-          <p className="mt-1 text-sm text-gray-500">Buyer access for Zamani Marketplace.</p>
+          <p className="mt-1 text-sm text-gray-500">Buyer access for ZAMANI NG MARKET HUB.</p>
           {error && <div className="mt-4"><AppErrorState body={error} /></div>}
           {message && <div className="mt-4 rounded-xl border border-green-100 bg-green-50 p-3 text-sm font-semibold text-green-700">{message}</div>}
 

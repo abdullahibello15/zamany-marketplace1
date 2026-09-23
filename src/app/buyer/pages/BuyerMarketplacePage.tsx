@@ -83,7 +83,7 @@ export function BuyerMarketplacePage() {
         <div className="overflow-hidden rounded-xl bg-green-800 text-white">
           <div className="grid min-h-64 md:grid-cols-2">
             <div className="flex flex-col justify-center p-6 md:p-8">
-              <p className="text-sm font-bold text-green-200">Zamani Marketplace</p>
+              <p className="text-sm font-bold text-green-200">ZAMANI NG MARKET HUB</p>
               <h1 className="mt-2 text-3xl font-black leading-tight md:text-4xl">Shop verified local vendors across every LGA.</h1>
               <p className="mt-3 max-w-xl text-sm text-green-100">Browse products, compare vendors, save favorites, and check out with a cart that keeps each seller clear.</p>
             </div>

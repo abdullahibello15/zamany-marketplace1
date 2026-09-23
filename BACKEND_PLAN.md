@@ -1,4 +1,4 @@
-# Zamani Marketplace — Backend Implementation Plan
+# ZAMANI NG MARKET HUB — Backend Implementation Plan
 
 ## 1. Purpose and scope
 

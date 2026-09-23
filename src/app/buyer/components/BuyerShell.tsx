@@ -30,7 +30,7 @@ export function BuyerShell({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Link to="/" className="flex min-w-0 items-center gap-2" onClick={() => setMenuOpen(false)}>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-700 text-lg font-black text-white">Z</div>
-            <span className="truncate text-sm font-black text-green-800 sm:text-xl">Zamani <span className="text-amber-500">Marketplace</span></span>
+            <span className="truncate text-sm font-black text-green-800 sm:text-xl">ZAMANI NG <span className="text-amber-500">MARKET HUB</span></span>
           </Link>
             <div className="ml-auto flex items-center gap-1 lg:hidden">
               <Link to="/cart" className="relative flex h-11 w-11 items-center justify-center rounded-xl text-green-700 hover:bg-green-50" aria-label="Cart" onClick={() => setMenuOpen(false)}>

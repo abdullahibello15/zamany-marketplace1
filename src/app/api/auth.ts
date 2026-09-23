@@ -1,5 +1,6 @@
 import { clearTokens, getTokens, request, setTokens } from "./client"
 import type { AuthRole, AuthTokens, LoginInput, RegisterBuyerInput, RegisterVendorInput, VendorLoginInput } from "./types"
+import { mockVendorAuth, useMockVendorAuth } from "../../mocks/vendorAuth"
 
 function save<T extends AuthTokens>(response: T) {
   setTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken })
@@ -21,7 +22,10 @@ export function getAccessTokenRole(accessToken: string): AuthRole {
 
 export const authService = {
   registerBuyer: (input: RegisterBuyerInput) => request<AuthTokens>("/auth/register/buyer", { method: "POST", body: input }).then(save),
-  registerVendor: (input: RegisterVendorInput) => request<AuthTokens>("https://nseg.onrender.com/auth/register", { method: "POST", body: input }).then(save),
+  registerVendor: (input: RegisterVendorInput) => (useMockVendorAuth
+    ? mockVendorAuth.register(input)
+    : request<AuthTokens>("https://nseg.onrender.com/auth/register", { method: "POST", body: { ...input, email: input.email.trim().toLowerCase() } })
+  ).then(save),
   login: async (input: LoginInput) => {
     const tokens = await request<AuthTokens>("/auth/login", { method: "POST", body: input })
     const role = getAccessTokenRole(tokens.accessToken)
@@ -29,7 +33,9 @@ export const authService = {
     return { ...tokens, role }
   },
   loginVendor: async (input: VendorLoginInput) => {
-    const tokens = await request<AuthTokens>("https://nseg.onrender.com/auth/login", { method: "POST", body: input })
+    const tokens = useMockVendorAuth
+      ? await mockVendorAuth.login(input)
+      : await request<AuthTokens>("https://nseg.onrender.com/auth/login", { method: "POST", body: { ...input, email: input.email.trim().toLowerCase() } })
     const role = getAccessTokenRole(tokens.accessToken)
     save(tokens)
     return { ...tokens, role }

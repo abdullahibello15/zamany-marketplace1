@@ -23,7 +23,7 @@ export function BuyerCartPage() {
       <div className="mx-auto max-w-4xl px-4 py-10">
         <AppEmptyState
           title="Your cart is empty"
-          body="Add products from verified Zamani Marketplace vendors to start checkout."
+          body="Add products from verified ZAMANI NG MARKET HUB vendors to start checkout."
           action={<Link to="/products" className="inline-flex min-h-11 items-center rounded-xl bg-green-700 px-4 text-sm font-bold text-white">Browse products</Link>}
         />
       </div>

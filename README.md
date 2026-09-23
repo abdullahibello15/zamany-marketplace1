@@ -1,7 +1,7 @@
 
-  # Zamani Marketplace
+  # ZAMANI NG MARKET HUB
 
-  This is a code bundle for Zamani Marketplace. The original project is available at https://www.figma.com/design/qENFYau04AgO8BMKVTUTmM/Marketplace-Web-Application.
+  This is a code bundle for ZAMANI NG MARKET HUB. The original project is available at https://www.figma.com/design/qENFYau04AgO8BMKVTUTmM/Marketplace-Web-Application.
 
   ## Running the code
 
